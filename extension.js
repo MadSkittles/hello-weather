@@ -1,30 +1,102 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-const vscode = require('vscode');
+const { StatusBarAlignment, window, commands } = require('vscode');
+const { basename, extname } = require('path');
+const GitHubService = require('./githubService');
 
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
+let statusBarUI, githubService;
+
+function statusWork(msg = '', show = true) {
+    statusBarUI.text = msg;
+    statusBarUI.tooltip = '';
+    statusBarUI.command = null;
+    if (show) {
+        statusBarUI.show();
+    } else {
+        statusBarUI.hide();
+    }
+}
+
+function showUploadStatus() {
+    statusWork('$(sync) snippets uploading ...');
+}
+
+function showUploadSuccessStatus() {
+    statusWork('$(thumbsup) snippets uploaded');
+}
+
+function showUploadFailureStatus() {
+    statusWork('$(thumbsdown) oops, something wrong!!');
+}
+
+function hideStatus() {
+    statusWork('', false);
+}
+
+async function getContent() {
+    const editor = window.activeTextEditor;
+    let selection = editor.selection;
+    if (selection.isEmpty) {
+        throw new Error('$(thumbsdown) nothing to upload');
+    }
+    return selection.isEmpty ? '' : editor.document.getText(selection);
+}
+
+async function upload() {
+    showUploadStatus();
+    try {
+        let content = await getContent();
+        let filePath = window.activeTextEditor.document.fileName;
+        let ext = extname(filePath);
+        let fileName = basename(filePath, ext);
+        let currentTime = new Date();
+        let uploadFileName = `${fileName}-${currentTime.getFullYear()}-${currentTime.getMonth()}-${currentTime.getDay()}-${currentTime.getHours()}-${currentTime.getMinutes()}-${currentTime.getSeconds()}${ext}`;
+
+        let options = {
+            ignoreFocusOut: true,
+            value: uploadFileName,
+            placeHolder: 'Input a name for uploading',
+            prompt: 'Input a name for uploading'
+        };
+        let realUploadFileName = await window.showInputBox(options);
+        if (realUploadFileName) {
+            let res = await githubService.uploadSnippet(
+                realUploadFileName,
+                content
+            );
+            if (res) {
+                showUploadSuccessStatus();
+            } else {
+                showUploadFailureStatus();
+            }
+        }
+    } catch (err) {
+        statusWork(err.message);
+    } finally {
+        setTimeout(() => {
+            hideStatus();
+        }, 3000);
+    }
+}
+
 function activate(context) {
-
-    // Use the console to output diagnostic information (console.log) and errors (console.error)
-    // This line of code will only be executed once when your extension is activated
     console.log('Congratulations, your extension "hello" is now active!');
 
-    // The command has been defined in the package.json file
-    // Now provide the implementation of the command with  registerCommand
-    // The commandId parameter must match the command field in package.json
-    let disposable = vscode.commands.registerCommand('extension.sayHello', function () {
-        // The code you place here will be executed every time your command is executed
+    statusBarUI = window.createStatusBarItem(StatusBarAlignment.Left, 1);
+    context.subscriptions.push(statusBarUI);
 
-        // Display a message box to the user
-        vscode.window.showInformationMessage('Hello World!');
-    });
+    githubService = new GitHubService(
+        '7c40e897793d9e7ea2d595169440f45304518f83'
+    );
 
-    context.subscriptions.push(disposable);
+    context.subscriptions.push(
+        commands.registerCommand('extension.sayHello', () => {
+            upload();
+        })
+    );
 }
+
 exports.activate = activate;
 
-// this method is called when your extension is deactivated
 function deactivate() {
+    statusBarUI.dispose();
 }
 exports.deactivate = deactivate;
