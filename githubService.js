@@ -80,7 +80,7 @@ class GitHubService {
         let gist = Object.assign({}, GIST_JSON_EMPTY);
         const gistId =
             workspace.getConfiguration('hello')['gist'] ||
-            '293673ee64b9e6597d5f9627aa87893fad52ce09';
+            'df9b682982fb7d1e33aa8f2333285b69ffb4d28e';
         gist.files = { [fileName]: { content } };
         this.__updateTime(gist);
         gist.gist_id = gistId;
